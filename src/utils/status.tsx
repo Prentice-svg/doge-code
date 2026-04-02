@@ -14,6 +14,7 @@ import { getAWSRegion, getDefaultVertexRegion, isEnvTruthy } from './envUtils.js
 import { getDisplayPath } from './file.js';
 import { formatNumber } from './format.js';
 import { getIdeClientName, type IDEExtensionInstallationStatus, isJetBrainsIde, toIDEDisplayName } from './ide.js';
+import { formatOpenAIUsageWindow } from './openaiUsageDisplay.js';
 import { readCustomApiStorage } from './customApiStorage.js';
 import { getClaudeAiUserDefaultModelDescription, modelDisplayString } from './model/model.js';
 import { getAPIProvider } from './model/providers.js';
@@ -284,16 +285,18 @@ export async function buildAccountPropertiesAsync(): Promise<Property[]> {
       value: accountInfo.usageSource
     });
   }
-  if (accountInfo.fiveHourUsage) {
+  const formattedFiveHourUsage = formatOpenAIUsageWindow(accountInfo.usagePrimaryWindow) ?? accountInfo.fiveHourUsage;
+  if (formattedFiveHourUsage) {
     properties.push({
       label: '5h usage',
-      value: accountInfo.fiveHourUsage
+      value: formattedFiveHourUsage
     });
   }
-  if (accountInfo.weeklyUsage) {
+  const formattedWeeklyUsage = formatOpenAIUsageWindow(accountInfo.usageSecondaryWindow) ?? accountInfo.weeklyUsage;
+  if (formattedWeeklyUsage) {
     properties.push({
       label: 'Weekly usage',
-      value: accountInfo.weeklyUsage
+      value: formattedWeeklyUsage
     });
   }
   if (accountInfo.usageCreditBalance) {

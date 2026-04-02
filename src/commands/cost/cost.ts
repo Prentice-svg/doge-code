@@ -3,6 +3,7 @@ import { currentLimits } from '../../services/claudeAiLimits.js'
 import type { LocalCommandCall } from '../../types/command.js'
 import { getAccountInformationAsync, isClaudeAISubscriber } from '../../utils/auth.js'
 import { readCustomApiStorage } from '../../utils/customApiStorage.js'
+import { formatOpenAIUsageWindowLines } from '../../utils/openaiUsageDisplay.js'
 import {
   getTotalInputTokens,
   getTotalOutputTokens,
@@ -18,8 +19,8 @@ export const call: LocalCommandCall = async () => {
     const lines = [
       'OpenAI OAuth cost summary',
       'This session is using the ChatGPT Codex backend, so billable usage is best interpreted from the account usage windows below.',
-      accountInfo?.fiveHourUsage ? `5h usage: ${accountInfo.fiveHourUsage}` : undefined,
-      accountInfo?.weeklyUsage ? `Weekly usage: ${accountInfo.weeklyUsage}` : undefined,
+      ...formatOpenAIUsageWindowLines('5h usage', accountInfo?.usagePrimaryWindow),
+      ...formatOpenAIUsageWindowLines('Weekly usage', accountInfo?.usageSecondaryWindow),
       accountInfo?.usageCreditBalance ? `Credits: ${accountInfo.usageCreditBalance}` : undefined,
       accountInfo?.usageError ? `Usage status: ${accountInfo.usageError}` : undefined,
       '',

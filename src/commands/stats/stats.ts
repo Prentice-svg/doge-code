@@ -6,6 +6,7 @@ import {
 import { formatDuration, formatNumber } from '../../utils/format.js'
 import { getAccountInformationAsync } from '../../utils/auth.js'
 import { readCustomApiStorage } from '../../utils/customApiStorage.js'
+import { formatOpenAIUsageWindowLines } from '../../utils/openaiUsageDisplay.js'
 import { aggregateClaudeCodeStatsForRange } from '../../utils/stats.js'
 
 function formatTopModels(
@@ -83,12 +84,8 @@ export const call: LocalCommandCall = async () => {
           accountInfo?.usageSource
             ? `Usage source: ${accountInfo.usageSource}`
             : undefined,
-          accountInfo?.fiveHourUsage
-            ? `5h usage: ${accountInfo.fiveHourUsage}`
-            : undefined,
-          accountInfo?.weeklyUsage
-            ? `Weekly usage: ${accountInfo.weeklyUsage}`
-            : undefined,
+          ...formatOpenAIUsageWindowLines('5h usage', accountInfo?.usagePrimaryWindow),
+          ...formatOpenAIUsageWindowLines('Weekly usage', accountInfo?.usageSecondaryWindow),
           accountInfo?.usageCreditBalance
             ? `Credits: ${accountInfo.usageCreditBalance}`
             : undefined,

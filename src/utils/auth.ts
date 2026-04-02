@@ -83,7 +83,15 @@ import {
   readOpenAIOAuthTokens,
 } from './openaiOauthStorage.js'
 import { isOpenAITokenExpired } from '../services/oauth/openaiOauthClient.js'
-import { fetchOpenAIUsageSnapshot } from '../services/oauth/openaiUsage.js'
+import {
+  fetchOpenAIUsageSnapshot,
+  type OpenAIUsageCredits,
+  type OpenAIUsageWindow,
+} from '../services/oauth/openaiUsage.js'
+import {
+  formatOpenAIUsageCredits,
+  formatOpenAIUsageWindow,
+} from './openaiUsageDisplay.js'
 
 /** Default TTL for API key helper cache in milliseconds (5 minutes) */
 const DEFAULT_API_KEY_HELPER_TTL = 5 * 60 * 1000
@@ -1876,6 +1884,9 @@ export type UserAccountInfo = {
   planType?: string
   tokenStatus?: string
   usageSource?: string
+  usagePrimaryWindow?: OpenAIUsageWindow
+  usageSecondaryWindow?: OpenAIUsageWindow
+  usageCredits?: OpenAIUsageCredits
   fiveHourUsage?: string
   weeklyUsage?: string
   usageCreditBalance?: string
@@ -2006,9 +2017,12 @@ export async function getAccountInformationAsync(): Promise<
       ...accountInfo,
       planType: snapshot.planType ?? accountInfo.planType,
       usageSource: 'ChatGPT backend API',
+      usagePrimaryWindow: snapshot.primary,
+      usageSecondaryWindow: snapshot.secondary,
+      usageCredits: snapshot.credits,
       fiveHourUsage: formatOpenAIUsageWindow(snapshot.primary),
       weeklyUsage: formatOpenAIUsageWindow(snapshot.secondary),
-      usageCreditBalance: snapshot.credits?.balance,
+      usageCreditBalance: formatOpenAIUsageCredits(snapshot.credits),
     }
   } catch (error) {
     return {
@@ -2017,36 +2031,6 @@ export async function getAccountInformationAsync(): Promise<
       usageError: error instanceof Error ? error.message : String(error),
     }
   }
-}
-
-function formatOpenAIUsageWindow(
-  window:
-    | {
-        usedPercent: number
-        windowMinutes?: number
-        resetsAt?: string
-      }
-    | undefined,
-): string | undefined {
-  if (!window) return undefined
-  const roundedPercent = `${Math.round(window.usedPercent)}% used`
-  const parts = [roundedPercent]
-  if (window.windowMinutes) {
-    if (window.windowMinutes >= 24 * 60) {
-      parts.push(`${Math.round(window.windowMinutes / (24 * 60))}d window`)
-    } else if (window.windowMinutes >= 60) {
-      parts.push(`${Math.round(window.windowMinutes / 60)}h window`)
-    } else {
-      parts.push(`${window.windowMinutes}m window`)
-    }
-  }
-  if (window.resetsAt) {
-    const resetDate = new Date(window.resetsAt)
-    if (!Number.isNaN(resetDate.getTime())) {
-      parts.push(`resets ${resetDate.toLocaleString()}`)
-    }
-  }
-  return parts.join(' | ')
 }
 
 /**

@@ -1,4 +1,7 @@
-import { setMainLoopModelOverride } from '../bootstrap/state.js'
+import {
+  setMainLoopModelOverride,
+  setSessionBypassPermissionsMode,
+} from '../bootstrap/state.js'
 import {
   clearApiKeyHelperCache,
   clearAwsCredentialsCache,
@@ -65,6 +68,8 @@ export function onChangeAppState({
   const prevMode = oldState.toolPermissionContext.mode
   const newMode = newState.toolPermissionContext.mode
   if (prevMode !== newMode) {
+    setSessionBypassPermissionsMode(newMode === 'bypassPermissions')
+
     // CCR external_metadata must not receive internal-only mode names
     // (bubble, ungated auto). Externalize first — and skip
     // the CCR notify if the EXTERNAL mode didn't change (e.g.,

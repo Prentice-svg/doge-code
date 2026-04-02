@@ -5,6 +5,8 @@ import { getCwd } from '../../utils/cwd.js'
 import { getCurrentSessionTitle } from '../../utils/sessionStorage.js'
 import { getAccountInformationAsync } from '../../utils/auth.js'
 import { readCustomApiStorage } from '../../utils/customApiStorage.js'
+import { formatOpenAIUsageWindowLines } from '../../utils/openaiUsageDisplay.js'
+import { permissionModeTitle } from '../../utils/permissions/PermissionMode.js'
 import { getAPIProvider } from '../../utils/model/providers.js'
 import { getProxyUrl } from '../../utils/proxy.js'
 import { getMTLSConfig } from '../../utils/mtls.js'
@@ -36,8 +38,8 @@ function formatAccountSection(
   pushLine(lines, 'Name', process.env.IS_DEMO ? undefined : accountInfo.name)
   pushLine(lines, 'Email', process.env.IS_DEMO ? undefined : accountInfo.email)
   pushLine(lines, 'Usage source', accountInfo.usageSource)
-  pushLine(lines, '5h usage', accountInfo.fiveHourUsage)
-  pushLine(lines, 'Weekly usage', accountInfo.weeklyUsage)
+  lines.push(...formatOpenAIUsageWindowLines('5h usage', accountInfo.usagePrimaryWindow))
+  lines.push(...formatOpenAIUsageWindowLines('Weekly usage', accountInfo.usageSecondaryWindow))
   pushLine(lines, 'Credits', accountInfo.usageCreditBalance)
   pushLine(lines, 'Usage status', accountInfo.usageError)
   return lines
@@ -148,10 +150,11 @@ function formatRecentRequestSection(): string[] {
   return lines
 }
 
-export const call: LocalCommandCall = async (_args, _context) => {
+export const call: LocalCommandCall = async (_args, context) => {
   const sessionId = getSessionId()
   const sessionName = getCurrentSessionTitle(sessionId)
   const accountInfo = await getAccountInformationAsync()
+  const permissionMode = context.getAppState().toolPermissionContext.mode
 
   const lines = [
     'Status',
@@ -161,6 +164,7 @@ export const call: LocalCommandCall = async (_args, _context) => {
     `Session ID: ${sessionId}`,
     `Session name: ${sessionName ?? '(unnamed)'}`,
     `cwd: ${getCwd()}`,
+    `Permission mode: ${permissionModeTitle(permissionMode)}`,
     '',
     'Account:',
     '',
