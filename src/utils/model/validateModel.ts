@@ -11,6 +11,11 @@ import {
 } from '@anthropic-ai/sdk'
 import { getModelStrings } from './modelStrings.js'
 import { getGlobalConfig } from '../config.js'
+import { readCustomApiStorage } from '../customApiStorage.js'
+import {
+  getOpenAIOAuthUnsupportedModelMessage,
+  isOpenAIOAuthSupportedModel,
+} from '../../constants/openaiOauth.js'
 
 // Cache valid models to avoid repeated API calls
 const validModelCache = new Map<string, boolean>()
@@ -22,7 +27,9 @@ export async function validateModel(
   model: string,
 ): Promise<{ valid: boolean; error?: string }> {
   const normalizedModel = model.trim()
-  const customBaseURL = getGlobalConfig().customApiEndpoint?.baseURL
+  const customApiStorage = readCustomApiStorage()
+  const customBaseURL =
+    customApiStorage.baseURL ?? getGlobalConfig().customApiEndpoint?.baseURL
 
   // Empty model is invalid
   if (!normalizedModel) {
@@ -46,6 +53,17 @@ export async function validateModel(
   // Check if it matches ANTHROPIC_CUSTOM_MODEL_OPTION (pre-validated by the user)
   if (normalizedModel === process.env.ANTHROPIC_CUSTOM_MODEL_OPTION) {
     return { valid: true }
+  }
+
+  if (
+    customApiStorage.provider === 'openai' &&
+    customApiStorage.authMode === 'oauth' &&
+    !isOpenAIOAuthSupportedModel(normalizedModel)
+  ) {
+    return {
+      valid: false,
+      error: getOpenAIOAuthUnsupportedModelMessage(normalizedModel),
+    }
   }
 
   // For custom Anthropic-compatible gateways, allow arbitrary model strings.

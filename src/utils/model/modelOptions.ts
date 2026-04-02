@@ -1,5 +1,6 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 import { getInitialMainLoopModel } from '../../bootstrap/state.js'
+import { OPENAI_OAUTH_CONFIG } from '../../constants/openaiOauth.js'
 import {
   isClaudeAISubscriber,
   isMaxSubscriber,
@@ -32,6 +33,7 @@ import {
 } from './model.js'
 import { has1mContext } from '../context.js'
 import { getGlobalConfig } from '../config.js'
+import { readCustomApiStorage } from '../customApiStorage.js'
 
 // @[MODEL LAUNCH]: Update all the available and default model option strings below.
 
@@ -278,6 +280,49 @@ function getOpusPlanOption(): ModelOption {
 // @[MODEL LAUNCH]: Update the model picker lists below to include/reorder options for the new model.
 // Each user tier (ant, Max/Team Premium, Pro/Team Standard/Enterprise, PAYG 1P, PAYG 3P) has its own list.
 function getModelOptionsBase(fastMode = false): ModelOption[] {
+  const customApi = readCustomApiStorage()
+  if (customApi.provider === 'openai' && customApi.authMode === 'oauth') {
+    const rawConfiguredModel =
+      customApi.model?.trim() ||
+      getGlobalConfig().customApiEndpoint?.model?.trim() ||
+      process.env.ANTHROPIC_MODEL?.trim()
+    const configuredModel =
+      rawConfiguredModel &&
+      OPENAI_OAUTH_CONFIG.SUPPORTED_MODELS.includes(
+        rawConfiguredModel as (typeof OPENAI_OAUTH_CONFIG.SUPPORTED_MODELS)[number],
+      )
+        ? rawConfiguredModel
+        : OPENAI_OAUTH_CONFIG.DEFAULT_MODEL
+    const savedModels = [
+      ...(customApi.savedModels ?? []),
+      ...(getGlobalConfig().customApiEndpoint?.savedModels ?? []),
+    ]
+      .map(model => model.trim())
+      .filter(Boolean)
+      .filter(model =>
+        OPENAI_OAUTH_CONFIG.SUPPORTED_MODELS.includes(
+          model as (typeof OPENAI_OAUTH_CONFIG.SUPPORTED_MODELS)[number],
+        ),
+      )
+
+    const orderedModels = [...new Set([
+      configuredModel,
+      ...savedModels.filter(model => model !== configuredModel),
+      ...OPENAI_OAUTH_CONFIG.SUPPORTED_MODELS.filter(
+        model => model !== configuredModel && !savedModels.includes(model),
+      ),
+    ])]
+
+    return orderedModels.map(model => ({
+      value: model,
+      label: model,
+      description:
+        model === OPENAI_OAUTH_CONFIG.DEFAULT_MODEL
+          ? 'OpenAI Codex backend default'
+          : 'OpenAI Codex backend model',
+    }))
+  }
+
   const customConfiguredModel =
     getGlobalConfig().customApiEndpoint?.model?.trim() ||
     process.env.ANTHROPIC_MODEL?.trim()

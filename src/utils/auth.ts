@@ -77,6 +77,13 @@ import { sleep } from './sleep.js'
 import { jsonParse } from './slowOperations.js'
 import { clearToolSchemaCache } from './toolSchemaCache.js'
 import { readCustomApiStorage } from './customApiStorage.js'
+import {
+  readOpenAIOAuthAccountInfo,
+  getOpenAIAccessToken,
+  readOpenAIOAuthTokens,
+} from './openaiOauthStorage.js'
+import { isOpenAITokenExpired } from '../services/oauth/openaiOauthClient.js'
+import { fetchOpenAIUsageSnapshot } from '../services/oauth/openaiUsage.js'
 
 /** Default TTL for API key helper cache in milliseconds (5 minutes) */
 const DEFAULT_API_KEY_HELPER_TTL = 5 * 60 * 1000
@@ -1858,21 +1865,64 @@ export function isConsumerSubscriber(): boolean {
 }
 
 export type UserAccountInfo = {
+  provider?: 'anthropic' | 'openai'
   subscription?: string
   tokenSource?: string
   apiKeySource?: ApiKeySource
   organization?: string
   email?: string
+  name?: string
+  accountId?: string
+  planType?: string
+  tokenStatus?: string
+  usageSource?: string
+  fiveHourUsage?: string
+  weeklyUsage?: string
+  usageCreditBalance?: string
+  usageError?: string
 }
 
 export function getAccountInformation() {
   const apiProvider = getAPIProvider()
-  // Only provide account info for first-party Anthropic API
   if (apiProvider !== 'firstParty') {
     return undefined
   }
+  const customApi = readCustomApiStorage()
+  if (customApi.provider === 'openai') {
+    const accountInfo: UserAccountInfo = {
+      provider: 'openai',
+    }
+    const openAIAccountInfo = readOpenAIOAuthAccountInfo()
+    const openAITokens = readOpenAIOAuthTokens()
+
+    accountInfo.tokenSource =
+      customApi.authMode === 'oauth' ? 'OpenAI OAuth' : undefined
+    if (customApi.apiKey) {
+      accountInfo.apiKeySource = 'DOGE_API_KEY'
+    }
+    if (openAIAccountInfo?.email) {
+      accountInfo.email = openAIAccountInfo.email
+    }
+    if (openAIAccountInfo?.name) {
+      accountInfo.name = openAIAccountInfo.name
+    }
+    if (openAIAccountInfo?.accountId) {
+      accountInfo.accountId = openAIAccountInfo.accountId
+    }
+    if (openAIAccountInfo?.planType) {
+      accountInfo.planType = openAIAccountInfo.planType
+    }
+    if (openAITokens?.accessToken) {
+      accountInfo.tokenStatus = isOpenAITokenExpired(openAITokens.expiresAt)
+        ? 'Expired or needs refresh'
+        : `Valid until ${new Date(openAITokens.expiresAt).toLocaleString()}`
+    }
+    return accountInfo
+  }
+
+  // Only provide account info for first-party Anthropic API
   const { source: authTokenSource } = getAuthTokenSource()
-  const accountInfo: UserAccountInfo = {}
+  const accountInfo: UserAccountInfo = { provider: 'anthropic' }
   if (
     authTokenSource === 'CLAUDE_CODE_OAUTH_TOKEN' ||
     authTokenSource === 'CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR'
@@ -1908,6 +1958,95 @@ export function getAccountInformation() {
     accountInfo.email = email
   }
   return accountInfo
+}
+
+export async function getAccountInformationAsync(): Promise<
+  UserAccountInfo | undefined
+> {
+  const accountInfo = getAccountInformation()
+  if (
+    !accountInfo ||
+    accountInfo.provider !== 'openai' ||
+    accountInfo.tokenSource !== 'OpenAI OAuth'
+  ) {
+    return accountInfo
+  }
+
+  const accountId =
+    accountInfo.accountId ?? readOpenAIOAuthAccountInfo()?.accountId ?? undefined
+  if (!accountId) {
+    return {
+      ...accountInfo,
+      usageError: 'Missing ChatGPT account ID',
+    }
+  }
+
+  const accessToken = await getOpenAIAccessToken()
+  if (!accessToken) {
+    return {
+      ...accountInfo,
+      usageError: 'Missing or expired OpenAI OAuth access token',
+    }
+  }
+
+  try {
+    const snapshot = await fetchOpenAIUsageSnapshot({
+      accessToken,
+      accountId,
+    })
+    if (!snapshot) {
+      return {
+        ...accountInfo,
+        usageSource: 'ChatGPT backend API',
+        usageError: 'No usage snapshot returned',
+      }
+    }
+
+    return {
+      ...accountInfo,
+      planType: snapshot.planType ?? accountInfo.planType,
+      usageSource: 'ChatGPT backend API',
+      fiveHourUsage: formatOpenAIUsageWindow(snapshot.primary),
+      weeklyUsage: formatOpenAIUsageWindow(snapshot.secondary),
+      usageCreditBalance: snapshot.credits?.balance,
+    }
+  } catch (error) {
+    return {
+      ...accountInfo,
+      usageSource: 'ChatGPT backend API',
+      usageError: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+function formatOpenAIUsageWindow(
+  window:
+    | {
+        usedPercent: number
+        windowMinutes?: number
+        resetsAt?: string
+      }
+    | undefined,
+): string | undefined {
+  if (!window) return undefined
+  const roundedPercent = `${Math.round(window.usedPercent)}% used`
+  const parts = [roundedPercent]
+  if (window.windowMinutes) {
+    if (window.windowMinutes >= 24 * 60) {
+      parts.push(`${Math.round(window.windowMinutes / (24 * 60))}d window`)
+    } else if (window.windowMinutes >= 60) {
+      parts.push(`${Math.round(window.windowMinutes / 60)}h window`)
+    } else {
+      parts.push(`${window.windowMinutes}m window`)
+    }
+  }
+  if (window.resetsAt) {
+    const resetDate = new Date(window.resetsAt)
+    if (!Number.isNaN(resetDate.getTime())) {
+      parts.push(`resets ${resetDate.toLocaleString()}`)
+    }
+  }
+  return parts.join(' | ')
 }
 
 /**

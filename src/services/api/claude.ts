@@ -26,6 +26,11 @@ import {
 } from 'src/utils/model/providers.js'
 import { readCustomApiStorage } from 'src/utils/customApiStorage.js'
 import {
+  convertAnthropicRequestToOpenAICodexResponses,
+  createAnthropicStreamFromOpenAICodex,
+  createOpenAICodexStream,
+} from './openaiCodex.js'
+import {
   convertAnthropicRequestToOpenAI,
   createAnthropicStreamFromOpenAI,
   createOpenAICompatStream,
@@ -261,6 +266,11 @@ import {
   type RetryContext,
   withRetry,
 } from './withRetry.js'
+import {
+  getOpenAIAccessToken,
+  hasOpenAIOAuthTokens,
+  readOpenAIOAuthAccountInfo,
+} from '../../utils/openaiOauthStorage.js'
 
 // Define a type that represents valid JSON values
 type JsonValue = string | number | boolean | null | JsonObject | JsonArray
@@ -1813,6 +1823,49 @@ async function* queryModel(
         // biome-ignore lint/plugin: main conversation loop handles attribution separately
         const compatProvider = readCustomApiStorage().provider ?? 'anthropic'
         if (compatProvider === 'openai') {
+          const customApi = readCustomApiStorage()
+          let openAIBearerToken = process.env.DOGE_API_KEY || ''
+          if (customApi.authMode === 'oauth' || (!customApi.apiKey && hasOpenAIOAuthTokens())) {
+            const freshToken = await getOpenAIAccessToken()
+            if (freshToken) {
+              openAIBearerToken = freshToken
+            }
+          }
+
+          if (customApi.authMode === 'oauth' || (!customApi.apiKey && hasOpenAIOAuthTokens())) {
+            const openAICodexRequest = convertAnthropicRequestToOpenAICodexResponses({
+              model: params.model,
+              system: params.system,
+              messages: params.messages,
+              tools: params.tools,
+              tool_choice: params.tool_choice,
+            })
+            if (!openAICodexRequest.input || openAICodexRequest.input.length === 0) {
+              throw new Error(
+                `[claude.ts] openai codex request has no input; source=${options.querySource} model=${params.model}`,
+              )
+            }
+
+            const reader = await createOpenAICodexStream(
+              {
+                apiKey: openAIBearerToken,
+                baseURL: process.env.ANTHROPIC_BASE_URL || customApi.baseURL || '',
+                accountInfo: readOpenAIOAuthAccountInfo(),
+                headers: clientRequestId
+                  ? { [CLIENT_REQUEST_ID_HEADER]: clientRequestId }
+                  : undefined,
+                fetch: globalThis.fetch,
+              },
+              openAICodexRequest,
+              signal,
+            )
+            queryCheckpoint('query_response_headers_received')
+            return createAnthropicStreamFromOpenAICodex({
+              reader,
+              model: params.model,
+            }) as unknown as Stream<BetaRawMessageStreamEvent>
+          }
+
           const openAIRequest = convertAnthropicRequestToOpenAI({
             model: params.model,
             system: params.system,
@@ -1827,9 +1880,10 @@ async function* queryModel(
               `[claude.ts] openai compat request has no messages; source=${options.querySource} model=${params.model}`,
             )
           }
+
           const reader = await createOpenAICompatStream(
             {
-              apiKey: process.env.DOGE_API_KEY || '',
+              apiKey: openAIBearerToken,
               baseURL: process.env.ANTHROPIC_BASE_URL || '',
               headers: clientRequestId
                 ? { [CLIENT_REQUEST_ID_HEADER]: clientRequestId }

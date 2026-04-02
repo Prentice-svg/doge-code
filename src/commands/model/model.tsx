@@ -4,6 +4,10 @@ import * as React from 'react';
 import type { CommandResultDisplay } from '../../commands.js';
 import { ModelPicker } from '../../components/ModelPicker.js';
 import { COMMON_HELP_ARGS, COMMON_INFO_ARGS } from '../../constants/xml.js';
+import {
+  getOpenAIOAuthUnsupportedModelMessage,
+  isOpenAIOAuthSupportedModel,
+} from '../../constants/openaiOauth.js'
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from '../../services/analytics/index.js';
 import { useAppState, useSetAppState } from '../../state/AppState.js';
 import type { LocalJSXCommandCall } from '../../types/command.js';
@@ -162,6 +166,13 @@ function SetModelAndClose({
         });
         return;
       }
+      const customApi = readCustomApiStorage();
+      if (model && customApi.provider === 'openai' && customApi.authMode === 'oauth' && !isOpenAIOAuthSupportedModel(model)) {
+        onDone(getOpenAIOAuthUnsupportedModelMessage(model), {
+          display: 'system'
+        });
+        return;
+      }
 
       // Skip validation for default model
       if (!model) {
@@ -292,7 +303,8 @@ export const call: LocalJSXCommandCall = async (onDone, _context, args) => {
   return <ModelPickerWrapper onDone={onDone} />;
 };
 function renderModelLabel(model: string | null): string {
-  const persistedCustomModel = readCustomApiStorage().model?.trim();
+  const persistedCustomModel =
+    readCustomApiStorage().model?.trim() ?? process.env.ANTHROPIC_MODEL?.trim();
   if (model === null && persistedCustomModel) {
     return persistedCustomModel;
   }

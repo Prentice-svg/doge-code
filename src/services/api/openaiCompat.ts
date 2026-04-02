@@ -7,6 +7,11 @@ import type {
   BetaToolUnion,
   BetaUsage,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
+import {
+  OPENAI_OAUTH_CONFIG,
+  isOpenAIOAuthSupportedModel,
+} from '../../constants/openaiOauth.js'
+import { readCustomApiStorage } from '../../utils/customApiStorage.js'
 
 type AnyBlock = Record<string, unknown>
 
@@ -243,12 +248,43 @@ export async function createOpenAICompatStream(
     } catch {
       responseText = ''
     }
+    const oauthHint = getOpenAIOAuthErrorHint(response.status, responseText, request.model)
     throw new Error(
-      `OpenAI compatible request failed with status ${response.status}${responseText ? `: ${responseText}` : ''}`,
+      `OpenAI compatible request failed with status ${response.status}${responseText ? `: ${responseText}` : ''}${oauthHint ? `\n${oauthHint}` : ''}`,
     )
   }
 
   return response.body.getReader()
+}
+
+function getOpenAIOAuthErrorHint(
+  status: number,
+  responseText: string,
+  model: string,
+): string | null {
+  const customApi = readCustomApiStorage()
+  if (customApi.provider !== 'openai' || customApi.authMode !== 'oauth') {
+    return null
+  }
+
+  const normalizedText = responseText.toLowerCase()
+  if (
+    status === 429 &&
+    normalizedText.includes('insufficient_quota') &&
+    !isOpenAIOAuthSupportedModel(model)
+  ) {
+    return `This OpenAI OAuth session currently supports ${OPENAI_OAUTH_CONFIG.DEFAULT_MODEL} in this build. '${model}' is treated like a platform API model and can hit quota checks. Switch back to '${OPENAI_OAUTH_CONFIG.DEFAULT_MODEL}'.`
+  }
+
+  if (
+    status === 429 &&
+    normalizedText.includes('insufficient_quota') &&
+    isOpenAIOAuthSupportedModel(model)
+  ) {
+    return `OpenAI OAuth login succeeded, but the upstream compatible API still returned a quota error for '${model}'.`
+  }
+
+  return null
 }
 
 function parseSSEChunk(buffer: string): { events: string[]; remainder: string } {

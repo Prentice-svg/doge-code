@@ -9,14 +9,15 @@ import { Box, Text, useTheme } from '../../ink.js';
 import { type AppState, useAppState } from '../../state/AppState.js';
 import { getCwd } from '../../utils/cwd.js';
 import { getCurrentSessionTitle } from '../../utils/sessionStorage.js';
-import { buildAccountProperties, buildAPIProviderProperties, buildIDEProperties, buildInstallationDiagnostics, buildInstallationHealthDiagnostics, buildMcpProperties, buildMemoryDiagnostics, buildSandboxProperties, buildSettingSourcesProperties, type Diagnostic, getModelDisplayLabel, type Property } from '../../utils/status.js';
+import { buildAccountPropertiesAsync, buildAPIProviderProperties, buildIDEProperties, buildInstallationDiagnostics, buildInstallationHealthDiagnostics, buildMcpProperties, buildMemoryDiagnostics, buildSandboxProperties, buildSettingSourcesProperties, type Diagnostic, getModelDisplayLabel, type Property } from '../../utils/status.js';
 import type { ThemeName } from '../../utils/theme.js';
 import { ConfigurableShortcutHint } from '../ConfigurableShortcutHint.js';
 type Props = {
   context: LocalJSXCommandContext;
   diagnosticsPromise: Promise<Diagnostic[]>;
+  primarySectionPromise: Promise<Property[]>;
 };
-function buildPrimarySection(): Property[] {
+export async function buildPrimarySection(): Promise<Property[]> {
   const sessionId = getSessionId();
   const customTitle = getCurrentSessionTitle(sessionId);
   const nameValue = customTitle ?? <Text dimColor>/rename to add a name</Text>;
@@ -32,7 +33,7 @@ function buildPrimarySection(): Property[] {
   }, {
     label: 'cwd',
     value: getCwd()
-  }, ...buildAccountProperties(), ...buildAPIProviderProperties()];
+  }, ...(await buildAccountPropertiesAsync()), ...buildAPIProviderProperties()];
 }
 function buildSecondarySection({
   mainLoopModel,
@@ -103,48 +104,42 @@ export function Status(t0) {
   const $ = _c(20);
   const {
     context,
-    diagnosticsPromise
+    diagnosticsPromise,
+    primarySectionPromise
   } = t0;
   const mainLoopModel = useAppState(_temp);
   const mcp = useAppState(_temp2);
   const [theme] = useTheme();
-  let t1;
-  if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-    t1 = buildPrimarySection();
-    $[0] = t1;
-  } else {
-    t1 = $[0];
-  }
   let t2;
-  if ($[1] !== context || $[2] !== mainLoopModel || $[3] !== mcp || $[4] !== theme) {
+  if ($[0] !== context || $[1] !== mainLoopModel || $[2] !== mcp || $[3] !== theme) {
     t2 = buildSecondarySection({
       mainLoopModel,
       mcp,
       theme,
       context
     });
-    $[1] = context;
-    $[2] = mainLoopModel;
-    $[3] = mcp;
-    $[4] = theme;
-    $[5] = t2;
+    $[0] = context;
+    $[1] = mainLoopModel;
+    $[2] = mcp;
+    $[3] = theme;
+    $[4] = t2;
   } else {
-    t2 = $[5];
+    t2 = $[4];
   }
   let t3;
-  if ($[6] !== t2) {
-    t3 = [t1, t2];
+  if ($[5] !== primarySectionPromise || $[6] !== t2) {
+    t3 = <Suspense fallback={null}><PrimarySection promise={primarySectionPromise} secondarySection={t2} /></Suspense>;
+    $[5] = primarySectionPromise;
     $[6] = t2;
     $[7] = t3;
   } else {
     t3 = $[7];
   }
-  const sections = t3;
   const grow = useIsInsideModal() ? 1 : undefined;
   let t4;
-  if ($[8] !== sections) {
-    t4 = sections.map(_temp4);
-    $[8] = sections;
+  if ($[8] !== t3) {
+    t4 = <Box flexDirection="column" gap={1}>{t3}</Box>;
+    $[8] = t3;
     $[9] = t4;
   } else {
     t4 = $[9];
@@ -234,6 +229,18 @@ function Diagnostics(t0) {
     t3 = $[4];
   }
   return t3;
+}
+function PrimarySection(t0: {
+  promise: Promise<Property[]>;
+  secondarySection: Property[];
+}) {
+  const {
+    promise,
+    secondarySection
+  } = t0;
+  const primarySection = use(promise);
+  const sections = [primarySection, secondarySection];
+  return <>{sections.map(_temp4)}</>;
 }
 function _temp5(diagnostic, i) {
   return <Box key={i} flexDirection="row" gap={1} paddingX={1}><Text color="error">{figures.warning}</Text>{typeof diagnostic === "string" ? <Text wrap="wrap">{diagnostic}</Text> : diagnostic}</Box>;

@@ -3,13 +3,18 @@ import figures from 'figures';
 import * as React from 'react';
 import { color, Text } from '../ink.js';
 import type { MCPServerConnection } from '../services/mcp/types.js';
-import { getAccountInformation, isClaudeAISubscriber } from './auth.js';
+import {
+  getAccountInformation,
+  getAccountInformationAsync,
+  isClaudeAISubscriber,
+} from './auth.js';
 import { getLargeMemoryFiles, getMemoryFiles, MAX_MEMORY_CHARACTER_COUNT } from './claudemd.js';
 import { getDoctorDiagnostic } from './doctorDiagnostic.js';
 import { getAWSRegion, getDefaultVertexRegion, isEnvTruthy } from './envUtils.js';
 import { getDisplayPath } from './file.js';
 import { formatNumber } from './format.js';
 import { getIdeClientName, type IDEExtensionInstallationStatus, isJetBrainsIde, toIDEDisplayName } from './ide.js';
+import { readCustomApiStorage } from './customApiStorage.js';
 import { getClaudeAiUserDefaultModelDescription, modelDisplayString } from './model/model.js';
 import { getAPIProvider } from './model/providers.js';
 import { getMTLSConfig } from './mtls.js';
@@ -197,16 +202,17 @@ export async function buildInstallationHealthDiagnostics(): Promise<Diagnostic[]
   }
   return items;
 }
-export function buildAccountProperties(): Property[] {
-  const accountInfo = getAccountInformation();
-  if (!accountInfo) {
-    return [];
-  }
+function buildAccountPropertiesFromInfo(accountInfo: NonNullable<ReturnType<typeof getAccountInformation>>): Property[] {
   const properties: Property[] = [];
   if (accountInfo.subscription) {
     properties.push({
       label: 'Login method',
       value: `${accountInfo.subscription} Account`
+    });
+  } else if (accountInfo.provider === 'openai') {
+    properties.push({
+      label: 'Login method',
+      value: 'OpenAI Account'
     });
   }
   if (accountInfo.tokenSource) {
@@ -221,12 +227,34 @@ export function buildAccountProperties(): Property[] {
       value: accountInfo.apiKeySource
     });
   }
-
-  // Hide sensitive account info in demo mode
+  if (accountInfo.tokenStatus) {
+    properties.push({
+      label: 'Token status',
+      value: accountInfo.tokenStatus
+    });
+  }
+  if (accountInfo.planType) {
+    properties.push({
+      label: 'Plan',
+      value: accountInfo.planType
+    });
+  }
+  if (accountInfo.accountId && !process.env.IS_DEMO) {
+    properties.push({
+      label: 'Account ID',
+      value: accountInfo.accountId
+    });
+  }
   if (accountInfo.organization && !process.env.IS_DEMO) {
     properties.push({
       label: 'Organization',
       value: accountInfo.organization
+    });
+  }
+  if (accountInfo.name && !process.env.IS_DEMO) {
+    properties.push({
+      label: 'Name',
+      value: accountInfo.name
     });
   }
   if (accountInfo.email && !process.env.IS_DEMO) {
@@ -237,8 +265,54 @@ export function buildAccountProperties(): Property[] {
   }
   return properties;
 }
+export function buildAccountProperties(): Property[] {
+  const accountInfo = getAccountInformation();
+  if (!accountInfo) {
+    return [];
+  }
+  return buildAccountPropertiesFromInfo(accountInfo);
+}
+export async function buildAccountPropertiesAsync(): Promise<Property[]> {
+  const accountInfo = await getAccountInformationAsync();
+  if (!accountInfo) {
+    return [];
+  }
+  const properties = buildAccountPropertiesFromInfo(accountInfo);
+  if (accountInfo.usageSource) {
+    properties.push({
+      label: 'Usage source',
+      value: accountInfo.usageSource
+    });
+  }
+  if (accountInfo.fiveHourUsage) {
+    properties.push({
+      label: '5h usage',
+      value: accountInfo.fiveHourUsage
+    });
+  }
+  if (accountInfo.weeklyUsage) {
+    properties.push({
+      label: 'Weekly usage',
+      value: accountInfo.weeklyUsage
+    });
+  }
+  if (accountInfo.usageCreditBalance) {
+    properties.push({
+      label: 'Credits',
+      value: accountInfo.usageCreditBalance
+    });
+  }
+  if (accountInfo.usageError) {
+    properties.push({
+      label: 'Usage status',
+      value: accountInfo.usageError
+    });
+  }
+  return properties;
+}
 export function buildAPIProviderProperties(): Property[] {
   const apiProvider = getAPIProvider();
+  const customApi = readCustomApiStorage();
   const properties: Property[] = [];
   if (apiProvider !== 'firstParty') {
     const providerLabel = {
@@ -252,6 +326,18 @@ export function buildAPIProviderProperties(): Property[] {
     });
   }
   if (apiProvider === 'firstParty') {
+    if (customApi.provider === 'openai') {
+      properties.push({
+        label: 'API provider',
+        value: customApi.authMode === 'oauth' ? 'OpenAI Codex backend' : 'OpenAI-compatible'
+      });
+      if (customApi.authMode === 'oauth') {
+        properties.push({
+          label: 'Auth mode',
+          value: 'OAuth'
+        });
+      }
+    }
     const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
     if (anthropicBaseUrl) {
       properties.push({

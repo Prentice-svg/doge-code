@@ -30,6 +30,7 @@ export function useMainLoopModel(): ModelName {
     mainLoopModelForSession ??
       mainLoopModel ??
       readCustomApiStorage().model ??
+      process.env.ANTHROPIC_MODEL ??
       getDefaultMainLoopModelSetting(),
   )
   return model

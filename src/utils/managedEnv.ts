@@ -3,6 +3,12 @@ import { clearCACertsCache } from './caCerts.js'
 import { getGlobalConfig } from './config.js'
 import { readCustomApiStorage } from './customApiStorage.js'
 import { isEnvTruthy } from './envUtils.js'
+import { readOpenAIOAuthTokens } from './openaiOauthStorage.js'
+import {
+  getOpenAIOAuthUnsupportedModelMessage,
+  isOpenAIOAuthSupportedModel,
+  OPENAI_OAUTH_CONFIG,
+} from '../constants/openaiOauth.js'
 import {
   isProviderManagedEnvVar,
   SAFE_ENV_VARS,
@@ -213,9 +219,35 @@ function applyPersistedCustomApiEndpointEnv(): void {
 
   if (customApiEndpoint?.apiKey) {
     process.env.DOGE_API_KEY = customApiEndpoint.apiKey
+  } else if (
+    customApiEndpoint?.provider === 'openai' &&
+    customApiEndpoint?.authMode === 'oauth'
+  ) {
+    process.env.ANTHROPIC_BASE_URL = OPENAI_OAUTH_CONFIG.API_BASE_URL
+    const tokens = readOpenAIOAuthTokens()
+    if (tokens?.accessToken) {
+      process.env.DOGE_API_KEY = tokens.accessToken
+    }
   }
 
   if (customApiEndpoint?.model) {
-    process.env.ANTHROPIC_MODEL = customApiEndpoint.model
+    if (
+      customApiEndpoint.provider === 'openai' &&
+      customApiEndpoint.authMode === 'oauth' &&
+      !isOpenAIOAuthSupportedModel(customApiEndpoint.model)
+    ) {
+      process.env.ANTHROPIC_MODEL = OPENAI_OAUTH_CONFIG.DEFAULT_MODEL
+      process.stderr.write(
+        `${getOpenAIOAuthUnsupportedModelMessage(customApiEndpoint.model)}\n`,
+      )
+    } else {
+      process.env.ANTHROPIC_MODEL = customApiEndpoint.model
+    }
+  } else if (
+    customApiEndpoint?.provider === 'openai' &&
+    customApiEndpoint?.authMode === 'oauth'
+  ) {
+    // Older persisted OpenAI OAuth logins may not have stored a model yet.
+    process.env.ANTHROPIC_MODEL = OPENAI_OAUTH_CONFIG.DEFAULT_MODEL
   }
 }
