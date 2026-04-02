@@ -18,7 +18,8 @@
     "dev": "bun run ./src/bootstrap-entry.ts",
     "start": "bun run ./src/bootstrap-entry.ts",
     "version": "bun run ./src/bootstrap-entry.ts --version",
-    "dev:restore-check": "bun run ./src/dev-entry.ts"
+    "dev:restore-check": "bun run ./src/dev-entry.ts",
+    "package:portable": "powershell -ExecutionPolicy Bypass -File ./scripts/package-portable.ps1"
   },
   "bin": {
     "doge": "./src/bootstrap-entry.ts"

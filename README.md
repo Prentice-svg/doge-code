@@ -265,3 +265,22 @@ bun run version
 - 它包含恢复期代码与后续 Fork 改动，不代表官方立场
 - 如果某些行为看起来“很像官方，但又不完全像”，那通常不是你看错了，而是这确实是恢复版 + 魔改版的叠加态
 - 如果某些文案偶尔带一点 ACG 味，那是彩蛋，不是类型系统坏掉了（至少不全是）
+## Windows 便携发布
+
+当前仓库可以先发布成 Windows 便携目录，而不是单文件安装包。
+
+在仓库根目录运行：
+
+```powershell
+bun run package:portable
+```
+
+默认会生成：
+
+```text
+dist\portable\doge-code-windows-portable-<version>
+```
+
+这个目录可以直接复制到另一台 Windows 电脑。目标机器装好 Bun 后，运行 `doge.cmd` 即可。
+
+更多说明见：[docs/portable-windows.md](docs/portable-windows.md)
