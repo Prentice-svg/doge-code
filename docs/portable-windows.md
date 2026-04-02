@@ -16,6 +16,12 @@ bun run package:portable
 dist\portable\doge-code-windows-portable-<version>
 ```
 
+同时会生成 zip：
+
+```text
+dist\portable\doge-code-windows-portable-<version>.zip
+```
+
 ## 结果结构
 
 ```text

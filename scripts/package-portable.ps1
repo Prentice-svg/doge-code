@@ -2,7 +2,8 @@
 param(
   [string]$OutputRoot = "dist\portable",
   [string]$Version = "",
-  [switch]$SkipNodeModules
+  [switch]$SkipNodeModules,
+  [switch]$SkipZip
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,6 +11,27 @@ $ErrorActionPreference = "Stop"
 function Write-Step {
   param([string]$Message)
   Write-Host "[portable] $Message"
+}
+
+function Remove-PathWithRetry {
+  param(
+    [string]$Path,
+    [int]$MaxAttempts = 5
+  )
+
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    try {
+      if (Test-Path $Path) {
+        Remove-Item -LiteralPath $Path -Recurse -Force
+      }
+      return
+    } catch {
+      if ($attempt -eq $MaxAttempts) {
+        throw
+      }
+      Start-Sleep -Milliseconds (500 * $attempt)
+    }
+  }
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -29,15 +51,20 @@ $outputRootPath = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
 $releaseRoot = Join-Path $outputRootPath $releaseName
 $appRoot = Join-Path $releaseRoot "app"
 $dataRoot = Join-Path $releaseRoot "data"
+$zipPath = Join-Path $outputRootPath "$releaseName.zip"
 
 Write-Step "Preparing release directory: $releaseRoot"
 if (Test-Path $releaseRoot) {
-  Remove-Item -LiteralPath $releaseRoot -Recurse -Force
+  Remove-PathWithRetry -Path $releaseRoot
 }
 
 New-Item -ItemType Directory -Path $releaseRoot | Out-Null
 New-Item -ItemType Directory -Path $appRoot | Out-Null
 New-Item -ItemType Directory -Path $dataRoot | Out-Null
+
+if ((Test-Path $zipPath) -and (-not $SkipZip)) {
+  Remove-PathWithRetry -Path $zipPath
+}
 
 $copyDirs = @("src", "vendor", "shims")
 if (-not $SkipNodeModules -and (Test-Path (Join-Path $repoRoot "node_modules"))) {
@@ -120,5 +147,16 @@ $portableReadme = @(
 
 Set-Content -LiteralPath (Join-Path $releaseRoot "README-Portable.md") -Value $portableReadme -Encoding ASCII
 
+if (-not $SkipZip) {
+  Write-Step "Creating zip archive: $zipPath"
+  tar -a -c -f $zipPath -C $outputRootPath $releaseName
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to create zip archive with tar"
+  }
+}
+
 Write-Step "Portable package created successfully"
 Write-Host $releaseRoot
+if (-not $SkipZip) {
+  Write-Host $zipPath
+}
