@@ -1884,6 +1884,7 @@ export type UserAccountInfo = {
   planType?: string
   tokenStatus?: string
   usageSource?: string
+  usageUpdatedAt?: string
   usagePrimaryWindow?: OpenAIUsageWindow
   usageSecondaryWindow?: OpenAIUsageWindow
   usageCredits?: OpenAIUsageCredits
@@ -2017,6 +2018,7 @@ export async function getAccountInformationAsync(): Promise<
       ...accountInfo,
       planType: snapshot.planType ?? accountInfo.planType,
       usageSource: 'ChatGPT backend API',
+      usageUpdatedAt: new Date().toISOString(),
       usagePrimaryWindow: snapshot.primary,
       usageSecondaryWindow: snapshot.secondary,
       usageCredits: snapshot.credits,
@@ -2028,6 +2030,7 @@ export async function getAccountInformationAsync(): Promise<
     return {
       ...accountInfo,
       usageSource: 'ChatGPT backend API',
+      usageUpdatedAt: new Date().toISOString(),
       usageError: error instanceof Error ? error.message : String(error),
     }
   }

@@ -5,7 +5,10 @@ import { getCwd } from '../../utils/cwd.js'
 import { getCurrentSessionTitle } from '../../utils/sessionStorage.js'
 import { getAccountInformationAsync } from '../../utils/auth.js'
 import { readCustomApiStorage } from '../../utils/customApiStorage.js'
-import { formatOpenAIUsageWindowLines } from '../../utils/openaiUsageDisplay.js'
+import {
+  formatOpenAIUsageUpdatedAt,
+  formatOpenAIUsageWindowLines,
+} from '../../utils/openaiUsageDisplay.js'
 import { permissionModeTitle } from '../../utils/permissions/PermissionMode.js'
 import { getAPIProvider } from '../../utils/model/providers.js'
 import { getProxyUrl } from '../../utils/proxy.js'
@@ -38,6 +41,11 @@ function formatAccountSection(
   pushLine(lines, 'Name', process.env.IS_DEMO ? undefined : accountInfo.name)
   pushLine(lines, 'Email', process.env.IS_DEMO ? undefined : accountInfo.email)
   pushLine(lines, 'Usage source', accountInfo.usageSource)
+  pushLine(
+    lines,
+    'Usage updated at',
+    formatOpenAIUsageUpdatedAt(accountInfo.usageUpdatedAt),
+  )
   lines.push(...formatOpenAIUsageWindowLines('5h usage', accountInfo.usagePrimaryWindow))
   lines.push(...formatOpenAIUsageWindowLines('Weekly usage', accountInfo.usageSecondaryWindow))
   pushLine(lines, 'Credits', accountInfo.usageCreditBalance)

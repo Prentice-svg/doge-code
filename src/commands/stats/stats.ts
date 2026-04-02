@@ -6,7 +6,10 @@ import {
 import { formatDuration, formatNumber } from '../../utils/format.js'
 import { getAccountInformationAsync } from '../../utils/auth.js'
 import { readCustomApiStorage } from '../../utils/customApiStorage.js'
-import { formatOpenAIUsageWindowLines } from '../../utils/openaiUsageDisplay.js'
+import {
+  formatOpenAIUsageUpdatedAt,
+  formatOpenAIUsageWindowLines,
+} from '../../utils/openaiUsageDisplay.js'
 import { aggregateClaudeCodeStatsForRange } from '../../utils/stats.js'
 
 function formatTopModels(
@@ -84,6 +87,10 @@ export const call: LocalCommandCall = async () => {
           accountInfo?.usageSource
             ? `Usage source: ${accountInfo.usageSource}`
             : undefined,
+          accountInfo?.usageUpdatedAt
+            ? `Usage updated at: ${formatOpenAIUsageUpdatedAt(accountInfo.usageUpdatedAt)}`
+            : undefined,
+          'Account quota:',
           ...formatOpenAIUsageWindowLines('5h usage', accountInfo?.usagePrimaryWindow),
           ...formatOpenAIUsageWindowLines('Weekly usage', accountInfo?.usageSecondaryWindow),
           accountInfo?.usageCreditBalance
@@ -92,6 +99,8 @@ export const call: LocalCommandCall = async () => {
           accountInfo?.usageError
             ? `Usage status: ${accountInfo.usageError}`
             : undefined,
+          '',
+          'OpenAI local history:',
           recent7dOpenAITopModel
             ? `Recent 7d OpenAI top model: ${recent7dOpenAITopModel}`
             : 'Recent 7d OpenAI top model: No local OpenAI model history yet',

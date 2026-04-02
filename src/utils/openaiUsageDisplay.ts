@@ -38,11 +38,22 @@ function formatResetTime(resetsAt?: string): string | undefined {
   return `resets ${resetDate.toLocaleString()}`
 }
 
+export function getOpenAIUsageStatusLabel(
+  window?: OpenAIUsageWindow,
+): string | undefined {
+  if (!window) return undefined
+  const usedPercent = clampPercentage(window.usedPercent)
+  if (usedPercent >= 90) return 'Near limit'
+  if (usedPercent >= 70) return 'Busy'
+  return 'Healthy'
+}
+
 export function formatOpenAIUsageWindow(window?: OpenAIUsageWindow): string | undefined {
   if (!window) return undefined
   const usedPercent = clampPercentage(window.usedPercent)
   const remainingPercent = clampPercentage(100 - usedPercent)
   const parts = [
+    getOpenAIUsageStatusLabel(window),
     `${buildProgressBar(usedPercent)} ${formatPercent(usedPercent)} used`,
     `${formatPercent(remainingPercent)} remaining`,
     formatWindowSpan(window.windowMinutes),
@@ -72,4 +83,11 @@ export function formatOpenAIUsageCredits(
   ].filter((part): part is string => Boolean(part))
 
   return parts.join(' | ')
+}
+
+export function formatOpenAIUsageUpdatedAt(value?: string): string | undefined {
+  if (!value) return undefined
+  const updatedAt = new Date(value)
+  if (Number.isNaN(updatedAt.getTime())) return undefined
+  return updatedAt.toLocaleString()
 }
