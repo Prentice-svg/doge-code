@@ -2,7 +2,12 @@ import * as React from 'react';
 import { PermissionRuleList } from '../../components/permissions/rules/PermissionRuleList.js';
 import type { LocalJSXCommandCall } from '../../types/command.js';
 import { createPermissionRetryMessage } from '../../utils/messages.js';
-export const call: LocalJSXCommandCall = async (onDone, context) => {
+export const call: LocalJSXCommandCall = async (onDone, context, args) => {
+  if (args.trim()) {
+    const permissionModeCommand = await import('../permission-mode/permission-mode.js')
+    return permissionModeCommand.call(onDone, context, args)
+  }
+
   return <PermissionRuleList onExit={onDone} onRetryDenials={commands => {
     context.setMessages(prev => [...prev, createPermissionRetryMessage(commands)]);
   }} />;
